@@ -54,7 +54,7 @@ NeuropixEditor::NeuropixEditor(GenericProcessor* parentNode, NeuropixThread* t, 
     triggerTypeButton->addListener(this);
     triggerTypeButton->setTooltip("Switch between external and internal triggering");
     triggerTypeButton->setToggleState(true, dontSendNotification);
-    addAndMakeVisible(triggerTypeButton);
+    //addAndMakeVisible(triggerTypeButton);
 
     internalTrigger = true;
 
@@ -62,17 +62,17 @@ NeuropixEditor::NeuropixEditor(GenericProcessor* parentNode, NeuropixThread* t, 
     triggerTypeLabel->setFont(Font("Small Text", 13, Font::plain));
     triggerTypeLabel->setBounds(105,71,100,20);
     triggerTypeLabel->setColour(Label::textColourId, Colours::darkgrey);
-    addAndMakeVisible(triggerTypeLabel);
+    //addAndMakeVisible(triggerTypeLabel);
 
-    restartButton = new UtilityButton("YES", Font("Small Text", 13, Font::plain));
-	restartButton->setRadius(3.0f);
-	restartButton->setBounds(20, 100, 34, 22);
-	restartButton->addListener(this);
-	restartButton->setTooltip("Auto-restart if probe stops sending data");
-	restartButton->setToggleState(true, dontSendNotification);
-	addAndMakeVisible(restartButton);
+    recordButton = new UtilityButton("NO", Font("Small Text", 13, Font::plain));
+	recordButton->setRadius(3.0f);
+	recordButton->setBounds(20, 100, 34, 22);
+	recordButton->addListener(this);
+	recordButton->setTooltip("Record data to NPX format");
+	recordButton->setToggleState(true, dontSendNotification);
+	addAndMakeVisible(recordButton);
 
-	autoRestart = true;
+	recordToNpx = false;
 
     lfpButton = new UtilityButton("LFP", Font("Small Text", 13, Font::plain));
     lfpButton->setRadius(3.0f);
@@ -94,11 +94,10 @@ NeuropixEditor::NeuropixEditor(GenericProcessor* parentNode, NeuropixThread* t, 
 
     sendAp = true;
 
-    restartLabel = new Label("Auto restart", "Auto restart");
-	restartLabel->setFont(Font("Small Text", 13, Font::plain));
-	restartLabel->setBounds(55, 101, 200, 20);
-	restartLabel->setColour(Label::textColourId, Colours::darkgrey);
-	addAndMakeVisible(restartLabel);
+    recordLabel = new Label("Record to NPX", "Record to NPX");
+	recordLabel->setBounds(55, 101, 200, 20);
+	recordLabel->setColour(Label::textColourId, Colours::darkgrey);
+	addAndMakeVisible(recordLabel);
 
     
 }
@@ -122,10 +121,12 @@ void NeuropixEditor::comboBoxChanged(ComboBox* comboBox)
     }
 }
 
-void NeuropixEditor::buttonCallback(Button* button)
+void NeuropixEditor::buttonEvent(Button* button)
 {
     if (!acquisitionIsActive)
     {
+
+		std::cout << "Button clicked." << std::endl;
     
         if (button == triggerTypeButton)
         {
@@ -143,21 +144,21 @@ void NeuropixEditor::buttonCallback(Button* button)
             thread->setTriggerMode(internalTrigger);
         
         }
-		else if (button == restartButton)
+		else if (button == recordButton)
         {
-			autoRestart = !autoRestart;
+			recordToNpx = !recordToNpx;
 
-			if (autoRestart)
+			if (recordToNpx)
             {
-				restartButton->setLabel("YES");
-                restartButton->setToggleState(true, dontSendNotification);
+				recordButton->setLabel("YES");
+				recordButton->setToggleState(true, dontSendNotification);
             }
             else {
-                restartButton->setLabel("NO");
-				restartButton->setToggleState(false, dontSendNotification);
+				recordButton->setLabel("NO");
+				recordButton->setToggleState(false, dontSendNotification);
             }
 
-			thread->setAutoRestart(autoRestart);
+			thread->setRecordMode(recordToNpx);
         } 
         else if (button == apButton)
         {
@@ -178,15 +179,27 @@ void NeuropixEditor::buttonCallback(Button* button)
 }
 
 
-void NeuropixEditor::saveEditorParameters(XmlElement* xml)
+void NeuropixEditor::saveCustomParameters(XmlElement* xml)
 {
+	xml->setAttribute("Type", "Neuropix3aEditor");
+
+	XmlElement* textLabelValues = xml->createNewChildElement("VALUES");
+	textLabelValues->setAttribute("RecordToNpx", recordButton->getToggleState());
+}
+
+void NeuropixEditor::loadCustomParameters(XmlElement* xml)
+{
+
+	forEachXmlChildElement(*xml, xmlNode)
+	{
+		if (xmlNode->hasTagName("VALUES"))
+		{
+			recordButton->setToggleState(xmlNode->getBoolAttribute("RecordToNpx",false), sendNotification);
+		}
+	}
 
 }
 
-void NeuropixEditor::loadEditorParameters(XmlElement* xml)
-{
-
-}
 
 Visualizer* NeuropixEditor::createNewCanvas(void)
 {
@@ -1032,7 +1045,7 @@ void NeuropixInterface::setOption(int o)
         else
             channelStatus.set(i, 0);
     }
-
+	
     for (int i = 384; i < 960; i++)
     {
         if (option < 3)

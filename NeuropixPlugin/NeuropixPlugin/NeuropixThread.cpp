@@ -110,8 +110,9 @@ void NeuropixThread::openConnection()
     internalTrigger = true;
     sendLfp = true;
     sendAp = true;
-    recordToNpx = false;
+    recordToNpx = true;
     recordingNumber = 0;
+	isRecording = false;
 
     // // GET SYSTEM INFO:
     ErrorCode error1 = neuropix.neuropix_getHardwareVersion(&hw_version);
@@ -131,7 +132,7 @@ void NeuropixThread::openConnection()
     DigitalControlErrorCode err0 = neuropix.neuropix_mode(ASIC_RECORDING);
     std::cout << "set mode error code: " << err0 << std::endl;
 
-    if (false)
+    if (true)
     {
         DigitalControlErrorCode err3 = neuropix.neuropix_nrst(false);
         std::cout << "nrst 1 error code: " << err3 << std::endl;
@@ -157,6 +158,32 @@ void NeuropixThread::openConnection()
     setAllReferences(0, 0);
 
 	neuropix.neuropix_ledOff(true);
+}
+
+void NeuropixThread::startRecording()
+{
+	if (recordToNpx)
+	{
+		recordingNumber++;
+		File rootFolder = CoreServices::RecordNode::getRecordingPath();
+		File fullPath = rootFolder.getChildFile("recording" + String(recordingNumber) + ".npx");
+		const std::string fname = fullPath.getFullPathName().toStdString();
+		ErrorCode caec = neuropix.neuropix_startRecording(fname);
+		std::cout << "NeuropixThread recording to file: " << fname << std::endl;
+
+		isRecording = true;
+	}
+}
+
+void NeuropixThread::stopRecording()
+{
+	if (recordToNpx)
+	{
+		ErrorCode caec = neuropix.neuropix_stopRecording();
+		std::cout << "NeuropixThread stopping recording." << std::endl;
+
+		isRecording = false;
+	}
 }
 
 void NeuropixThread::closeConnection()
@@ -213,7 +240,7 @@ bool NeuropixThread::startAcquisition()
    // dataBuffer2->clear();
 
     // stop data stream
-    if (false)
+    if (true)
     {
         DigitalControlErrorCode err3 = neuropix.neuropix_nrst(false);
         std::cout << "nrst 1 error code: " << err3 << std::endl;
@@ -221,33 +248,9 @@ bool NeuropixThread::startAcquisition()
         // clear the buffer
         ErrorCode err4 = neuropix.neuropix_resetDatapath();
         std::cout << "reset datapath error code: " << err4 << std::endl;
-    }
 
-
-    if (internalTrigger)
-    {
-
-        if (recordToNpx)
-        {
-            recordingNumber++;
-            std::string filename = "recording";
-            filename += std::to_string(recordingNumber);
-            filename += ".npx";
-            const std::string fname = filename;
-            ErrorCode caec = neuropix.neuropix_startRecording(fname);
-            std::cout << "Recording to file: " << filename << std::endl;
-        }
-
-        // // setNeuralStart() doesn't work yet!
-        //else
-        //{
-        //  ConfigAccessErrorCode caec = neuropix.neuropix_setNeuralStart();
-        //}
-        //if (caec != CONFIG_SUCCESS)
-        //{
-        //  std::cout << "start failed with error code " << caec << std::endl;
-        //  return false;
-        //}
+		err3 = neuropix.neuropix_nrst(true);
+		std::cout << "nrst 1 error code: " << err3 << std::endl;
     }
 
     counter = 0;
@@ -256,7 +259,9 @@ bool NeuropixThread::startAcquisition()
     eventCode = 0;
     maxCounter = 0;
     
-    startTimer(500);
+	neuropix.neuropix_setNeuralStart();
+
+	startThread();
    
     return true;
 }
@@ -267,8 +272,8 @@ void NeuropixThread::timerCallback()
     stopTimer();
 
     // start data stream
-    neuropix.neuropix_setNeuralStart();
-    startThread();
+    
+	startRecording();
 
     //DigitalControlErrorCode err5 = neuropix.neuropix_nrst(true);
     //std::cout << "nrst 2 error code: " << err5 << std::endl;
@@ -285,10 +290,9 @@ bool NeuropixThread::stopAcquisition()
         signalThreadShouldExit();
     }
 
-    if (recordToNpx)
-        neuropix.neuropix_stopRecording();
+	stopRecording();
 
-    if (false)
+    if (true)
     {
         // stop data stream
         DigitalControlErrorCode err3 = neuropix.neuropix_nrst(false);
@@ -297,8 +301,10 @@ bool NeuropixThread::stopAcquisition()
         // clear the buffer
         ErrorCode err4 = neuropix.neuropix_resetDatapath();
         std::cout << "reset datapath error code: " << err4 << std::endl;
+
+		err3 = neuropix.neuropix_nrst(true);
+		std::cout << "nrst 1 error code: " << err3 << std::endl;
     }
-    
 
     return true;
 }
@@ -549,10 +555,23 @@ void NeuropixThread::setAutoRestart(bool restart)
 void NeuropixThread::calibrateProbe()
 {
 
+	ErrorCode error;
+
     std::cout << "Applying ADC calibration..." << std::endl;
-    neuropix.neuropix_applyAdcCalibrationFromEeprom();
-    std::cout << "Applying gain correction settings..." << std::endl;
-    neuropix.neuropix_applyGainCalibrationFromEeprom();
+    error = neuropix.neuropix_applyAdcCalibrationFromEeprom();
+	if (error == 0)
+		std::cout << "Successfully applied ADC calibration" << std::endl;
+	else
+		CoreServices::sendStatusMessage("ADC calibration failed.");
+
+	std::cout << "Applying gain correction settings..." << std::endl;
+    error = neuropix.neuropix_applyGainCalibrationFromEeprom();
+
+	if (error == 0)
+		std::cout << "Successfully applied gain calibration" << std::endl;
+	else
+		CoreServices::sendStatusMessage("Gain calibration failed.");
+
     std::cout << "Done." << std::endl;
 
 }
@@ -642,6 +661,19 @@ void NeuropixThread::calibrateFromCsv(File directory)
 bool NeuropixThread::updateBuffer()
 {
 
+	bool shouldRecord = CoreServices::getRecordingStatus();
+
+	if (!isRecording && shouldRecord)
+	{
+		isRecording = true;
+		startTimer(500); // delay to allow RecordNode to update recording directory
+	}
+	else if (isRecording && !shouldRecord)
+	{
+		stopRecording();
+	}
+		
+
     ElectrodePacket packet;
 
     ReadErrorCode rec = neuropix.neuropix_readElectrodeData(packet);
@@ -651,13 +683,16 @@ bool NeuropixThread::updateBuffer()
         float data[384];
         float data2[384];
 
-        //
-        //if (counter <= 0)
-        //{
-        //  std::cout << packet.synchronization[0] << ", ";
-        //  std::cout << neuropix.neuropix_fifoFilling() << std::endl;
-        //  counter = 5000;
-        //}
+        
+        if (counter <= 0)
+        {
+          std::cout << "Fifo fill percentage: ";
+          std::cout << neuropix.neuropix_fifoFilling() << std::endl;
+          counter = 5000;
+		}
+		else {
+			counter--;
+		}
 
         //if (packet.ctrs[0][0] > maxCounter)
         //  maxCounter = packet.ctrs[0][0];
@@ -688,6 +723,10 @@ bool NeuropixThread::updateBuffer()
 			timestampLfp += 1;
 		}
             
+		//if (counter == 0)
+		//{
+		//	std::cout << timestampAp << ":" << timestampLfp << std::endl;
+		//}
 
         //std::cout << "READ SUCCESS!" << std::endl;    
         
@@ -707,25 +746,11 @@ bool NeuropixThread::updateBuffer()
         }
         else if (rec == DATA_ERROR)
         {
-            std::cout << "DATA ERROR" << std::endl;
+            std::cout << "DATA ERROR" << std::endl; // buffer overflow
         }
         else {
             std::cout << "ERROR CODE: " << rec << std::endl;
         }
-
-		if (autoRestart)
-		{
-			// stop data stream
-			DigitalControlErrorCode err3 = neuropix.neuropix_nrst(false);
-			std::cout << "nrst 1 error code: " << err3 << std::endl;
-
-			// clear the buffer
-			ErrorCode err4 = neuropix.neuropix_resetDatapath();
-			std::cout << "reset datapath error code: " << err4 << std::endl;
-
-			// re-start data acquisition
-			neuropix.neuropix_setNeuralStart();
-		}
 
     }
      

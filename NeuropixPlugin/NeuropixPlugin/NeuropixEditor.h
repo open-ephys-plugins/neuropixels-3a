@@ -50,10 +50,10 @@ namespace Neuropix {
 	    virtual ~NeuropixEditor();
 
 	    void comboBoxChanged(ComboBox* comboBox);
-	    void buttonCallback(Button* button);
+	    void buttonEvent(Button* button);
 
-	    void saveEditorParameters(XmlElement*);
-	    void loadEditorParameters(XmlElement*);
+		void saveCustomParameters(XmlElement*);
+	    void loadCustomParameters(XmlElement*);
 
 	    Visualizer* createNewCanvas(void);
 
@@ -65,14 +65,14 @@ namespace Neuropix {
 	    ScopedPointer<ComboBox> optionComboBox;
 	    ScopedPointer<UtilityButton> triggerTypeButton;
 	    ScopedPointer<Label> triggerTypeLabel;
-		ScopedPointer<UtilityButton> restartButton;
-		ScopedPointer<Label> restartLabel;
+		ScopedPointer<UtilityButton> recordButton;
+		ScopedPointer<Label> recordLabel;
 	    Viewport* viewport;
 	    NeuropixCanvas* canvas;
 	    NeuropixThread* thread;
 
 	    bool internalTrigger;
-		bool autoRestart;
+		bool recordToNpx;
 		bool sendAp;
 		bool sendLfp;
 		int option;

@@ -68,6 +68,10 @@ namespace Neuropix {
 	    /** Stops data transfer.*/
 	    bool stopAcquisition();
 
+		void startRecording();
+		void stopRecording();
+		bool isRecording;
+
 		// DataThread Methods
 
 		/** Returns the number of virtual subprocessors this source can generate */
@@ -166,9 +170,11 @@ namespace Neuropix {
 		bool sendAp;
 		bool sendLfp;
 
+		int counter;
+
 		Neuropix_basestation_api neuropix;
 		
-		long int counter;
+		//long int counter;
 		int recordingNumber;
 
 		CriticalSection displayMutex;
