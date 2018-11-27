@@ -110,7 +110,7 @@ void NeuropixThread::openConnection()
     internalTrigger = true;
     sendLfp = true;
     sendAp = true;
-    recordToNpx = true;
+    recordToNpx = false;
     recordingNumber = 0;
 	isRecording = false;
 

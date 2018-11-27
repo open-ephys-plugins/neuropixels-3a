@@ -69,7 +69,7 @@ NeuropixEditor::NeuropixEditor(GenericProcessor* parentNode, NeuropixThread* t, 
 	recordButton->setBounds(20, 100, 34, 22);
 	recordButton->addListener(this);
 	recordButton->setTooltip("Record data to NPX format");
-	recordButton->setToggleState(true, dontSendNotification);
+	recordButton->setToggleState(false, dontSendNotification);
 	addAndMakeVisible(recordButton);
 
 	recordToNpx = false;
