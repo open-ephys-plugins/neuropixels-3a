@@ -179,7 +179,7 @@ void NeuropixEditor::buttonEvent(Button* button)
 }
 
 
-void NeuropixEditor::saveCustomParameters(XmlElement* xml)
+void NeuropixEditor::saveEditorParameters(XmlElement* xml)
 {
 	xml->setAttribute("Type", "Neuropix3aEditor");
 
@@ -187,7 +187,7 @@ void NeuropixEditor::saveCustomParameters(XmlElement* xml)
 	textLabelValues->setAttribute("RecordToNpx", recordButton->getToggleState());
 }
 
-void NeuropixEditor::loadCustomParameters(XmlElement* xml)
+void NeuropixEditor::loadEditorParameters(XmlElement* xml)
 {
 
 	forEachXmlChildElement(*xml, xmlNode)
@@ -206,7 +206,7 @@ Visualizer* NeuropixEditor::createNewCanvas(void)
     std::cout << "Button clicked..." << std::endl;
     GenericProcessor* processor = (GenericProcessor*) getProcessor();
     std::cout << "Got processor." << std::endl;
-    canvas = new NeuropixCanvas(processor, thread);
+    canvas = new NeuropixCanvas(processor, this, thread);
     canvas->setOption(option);
     std::cout << "Created canvas." << std::endl;
     return canvas;
@@ -214,13 +214,13 @@ Visualizer* NeuropixEditor::createNewCanvas(void)
 
 /********************************************/
 
-NeuropixCanvas::NeuropixCanvas(GenericProcessor* p, NeuropixThread* thread)
+NeuropixCanvas::NeuropixCanvas(GenericProcessor* p, NeuropixEditor* editor_, NeuropixThread* thread_) : thread(thread_), editor(editor_)
 {
 
     processor = (SourceNode*) p;
 
     neuropixViewport = new Viewport();
-    neuropixInterface = new NeuropixInterface(thread, (NeuropixEditor*) p->getEditor());
+    neuropixInterface = new NeuropixInterface(thread_, editor_);
     neuropixViewport->setViewedComponent(neuropixInterface, false);
     addAndMakeVisible(neuropixViewport);
 
@@ -293,11 +293,15 @@ void NeuropixCanvas::buttonClicked(Button* button)
 
 void NeuropixCanvas::saveVisualizerParameters(XmlElement* xml)
 {
+	editor->saveEditorParameters(xml);
+
     neuropixInterface->saveParameters(xml);
 }
 
 void NeuropixCanvas::loadVisualizerParameters(XmlElement* xml)
 {
+	editor->loadEditorParameters(xml);
+
     neuropixInterface->loadParameters(xml);
 }
 
@@ -516,18 +520,18 @@ NeuropixInterface::NeuropixInterface(NeuropixThread* t, NeuropixEditor* e) : thr
     addAndMakeVisible(filterComboBox);
     //addAndMakeVisible(activityViewComboBox);
 
-    addAndMakeVisible(enableButton);
-    addAndMakeVisible(selectAllButton);
-    addAndMakeVisible(outputOnButton);
-    addAndMakeVisible(outputOffButton);
-    addAndMakeVisible(enableViewButton);
+    //addAndMakeVisible(enableButton);
+    //addAndMakeVisible(selectAllButton);
+    //addAndMakeVisible(outputOnButton);
+    //addAndMakeVisible(outputOffButton);
+    //addAndMakeVisible(enableViewButton);
     addAndMakeVisible(lfpGainViewButton);
     addAndMakeVisible(apGainViewButton);
     addAndMakeVisible(referenceViewButton);
     addAndMakeVisible(annotationButton);
     addAndMakeVisible(calibrationButton);
     addAndMakeVisible(calibrationButton2);
-	addAndMakeVisible(calibrationButton3);
+	//addAndMakeVisible(calibrationButton3);
 
     
     infoLabel = new Label("INFO", "INFO");
@@ -560,7 +564,7 @@ NeuropixInterface::NeuropixInterface(NeuropixThread* t, NeuropixEditor* e) : thr
     activityViewLabel->setColour(Label::textColourId, Colours::grey);
     //addAndMakeVisible(activityViewLabel);
 
-    filterLabel = new Label("FILTER", "FILTER CUT (GLOBAL)");
+    filterLabel = new Label("FILTER", "AP FILTER CUT");
     filterLabel->setFont(Font("Small Text", 13, Font::plain));
     filterLabel->setBounds(396,280,200,20);
     filterLabel->setColour(Label::textColourId, Colours::grey);
@@ -570,7 +574,7 @@ NeuropixInterface::NeuropixInterface(NeuropixThread* t, NeuropixEditor* e) : thr
     outputLabel->setFont(Font("Small Text", 13, Font::plain));
     outputLabel->setBounds(396,330,200,20);
     outputLabel->setColour(Label::textColourId, Colours::grey);
-    addAndMakeVisible(outputLabel);
+    //addAndMakeVisible(outputLabel);
 
     annotationLabel = new Label("ANNOTATION", "Custom annotation");
     annotationLabel->setBounds(396,420,200,20);
@@ -584,12 +588,6 @@ NeuropixInterface::NeuropixInterface(NeuropixThread* t, NeuropixEditor* e) : thr
     annotationLabelLabel->setBounds(396,400,200,20);
     annotationLabelLabel->setColour(Label::textColourId, Colours::grey);
     addAndMakeVisible(annotationLabelLabel);
-
-    outputLabel = new Label("OUTPUT", "OUTPUT");
-    outputLabel->setFont(Font("Small Text", 13, Font::plain));
-    outputLabel->setBounds(396,330,200,20);
-    outputLabel->setColour(Label::textColourId, Colours::grey);
-    addAndMakeVisible(outputLabel);
 
     shankPath.startNewSubPath(27, 28);
     shankPath.lineTo(27, 514);
@@ -2018,7 +2016,15 @@ void NeuropixInterface::saveParameters(XmlElement* xml)
 
 	xmlNode->setAttribute("visualizationMode", visualizationMode);
 
-	xmlNode->setAttribute("info", infoLabel->getText());
+	String hwVersion, bsVersion, apiVersion, asicInfo, serialNumber;
+
+	thread->getInfo(hwVersion, bsVersion, apiVersion, asicInfo, serialNumber);
+
+	xmlNode->setAttribute("firmware_version", hwVersion);
+	xmlNode->setAttribute("bs_version", bsVersion);
+	xmlNode->setAttribute("api_version", apiVersion);
+	xmlNode->setAttribute("probe_option", asicInfo);
+	xmlNode->setAttribute("probe_serial_number", serialNumber);
 
 	// annotations
 	for (int i = 0; i < annotations.size(); i++)

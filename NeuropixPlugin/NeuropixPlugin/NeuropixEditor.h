@@ -52,8 +52,8 @@ namespace Neuropix {
 	    void comboBoxChanged(ComboBox* comboBox);
 	    void buttonEvent(Button* button);
 
-		void saveCustomParameters(XmlElement*);
-	    void loadCustomParameters(XmlElement*);
+		void saveEditorParameters(XmlElement*);
+		void loadEditorParameters(XmlElement*);
 
 	    Visualizer* createNewCanvas(void);
 
@@ -84,7 +84,7 @@ namespace Neuropix {
 	class NeuropixCanvas : public Visualizer, public Button::Listener
 	{
 	public:
-		NeuropixCanvas(GenericProcessor* p, NeuropixThread* thread);
+		NeuropixCanvas(GenericProcessor* p, NeuropixEditor*, NeuropixThread*);
 		~NeuropixCanvas();
 
 		void paint(Graphics& g);
@@ -110,6 +110,8 @@ namespace Neuropix {
 
 
 		SourceNode* processor;
+		NeuropixThread* thread;
+		NeuropixEditor* editor;
 		ScopedPointer<Viewport> neuropixViewport;
 		ScopedPointer<NeuropixInterface> neuropixInterface;
 
