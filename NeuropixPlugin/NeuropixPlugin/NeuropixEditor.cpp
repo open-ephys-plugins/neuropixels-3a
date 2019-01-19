@@ -64,12 +64,12 @@ NeuropixEditor::NeuropixEditor(GenericProcessor* parentNode, NeuropixThread* t, 
     triggerTypeLabel->setColour(Label::textColourId, Colours::darkgrey);
     //addAndMakeVisible(triggerTypeLabel);
 
-    recordButton = new UtilityButton("NO", Font("Small Text", 13, Font::plain));
+    recordButton = new UtilityButton("YES", Font("Small Text", 13, Font::plain));
 	recordButton->setRadius(3.0f);
 	recordButton->setBounds(20, 100, 34, 22);
 	recordButton->addListener(this);
 	recordButton->setTooltip("Record data to NPX format");
-	recordButton->setToggleState(false, dontSendNotification);
+	recordButton->setToggleState(true, dontSendNotification);
 	addAndMakeVisible(recordButton);
 
 	recordToNpx = false;
