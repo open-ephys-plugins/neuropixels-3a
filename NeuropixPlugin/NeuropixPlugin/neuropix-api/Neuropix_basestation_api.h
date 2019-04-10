@@ -10,6 +10,7 @@
 class NeuropixConnectionLinkIntf;
 class VciInterface;
 class neuroprobe;
+class field_command;
 
 #include "ConnectionLinkPacket.h"
 #include "AdcPacket.h"
@@ -135,7 +136,9 @@ enum UartErrorCode
   UART_RX_OVERFLOW_ERROR      = 4, /**< uart error: rx overflow */
   UART_FRAME_ERROR            = 5, /**< uart protocol error: wrong rx stopbit */
   UART_PARITY_ERROR           = 6, /**< uart error: rx parity wrong */
-  UART_WRITE_VAL_OUT_OF_RANGE = 7  /**< tx uart: register value out of range */
+  UART_UNDERFLOW_ERROR        = 7  /**< reading the command_readdata failed: fifo
+                                        empty */
+
 };
 
 /**
@@ -344,17 +347,17 @@ public:
    *
    * @param headstage_select : selection for Penta Connect Board,
    *                           otherwise not relevant. Valid range 0 to 4.
-   *
+   * @param bs_ip_address : ip address of the BS board (defined in the FPGA build).
    * @return OPEN_SUCCESS if sucessful
    */
-  OpenErrorCode neuropix_open(unsigned char headstage_select=0);
+  OpenErrorCode neuropix_open(unsigned char headstage_select = 0, std::string bs_ip_address = "10.2.0.1");
 
   /**
    * This function establishes a playback data connection and a dummy config
    * link connection.
    *
    * @param playbackfile : the path of the playbackfile
-   *
+   DACTable_
    * @return OPEN_SUCCESS if sucessful
    */
   OpenErrorCode neuropix_open(const std::string & playbackfile);
@@ -1101,7 +1104,7 @@ public:
    *
    * @return error of UartErrorCode
    */
-  virtual UartErrorCode neuropix_readUart(unsigned char device, unsigned char address, std::vector<unsigned char> & data);
+  UartErrorCode neuropix_readUart(unsigned char device, unsigned char address, unsigned char & data);
 
   /**
    * This function writes a register of a device.
@@ -1112,7 +1115,7 @@ public:
    *
    * @return error of UartErrorCode
    */
-  virtual UartErrorCode neuropix_writeUart(unsigned char device, unsigned char address, std::vector<unsigned short> data);
+  UartErrorCode neuropix_writeUart(unsigned char device, unsigned char address, unsigned char data);
 
   /**
    * This function reads a register of the deserializer.
@@ -1924,6 +1927,20 @@ public:
   void neuropix_startLog();
 
 protected:
+
+  /**
+   * This function organises a burst of uart accesses, controlled by a vector of
+   * commands.
+   *
+   * @param commands : the vector of field_command, with the commands that
+   *                   control the uart.
+   * @param readdata : the vector of data bytes that are read over uart.
+   *
+   * @return error of UartErrorCode (the first error that was flagged)
+   */
+  virtual UartErrorCode uartBurst(std::vector<field_command> & commands,
+                                  std::vector<unsigned char> & readdata);
+
   NeuropixConnectionLinkIntf * tcpConnectionLink_;
   VciInterface * vciIntf_;
   neuroprobe * datamodel_;
@@ -1954,6 +1971,8 @@ private:
   float * electrodedata_;
 
   std::map<std::string, unsigned short> DACTable_;
+
+  std::string ip_address;
 
   /**
    * This function handles the startup configuration steps for adc calibration.
@@ -2124,11 +2143,18 @@ private:
    */
   virtual ReadErrorCode skipElectrodeData(unsigned int numberOfPackets);
 
-  // TODO
-  void neuropix_resetUart();
-
   // method to wait x milliseconds
   void neuropix_milliSleep(unsigned int milliseconds);
+
+  /**
+   * This function makes a field_command for UART burst
+   *
+   * @return field_command structure
+   */
+  field_command makeFieldCommand(bool read_not_write,
+                                 unsigned char device,
+                                 unsigned char address,
+                                 unsigned char data = 0);
 };
 
 
