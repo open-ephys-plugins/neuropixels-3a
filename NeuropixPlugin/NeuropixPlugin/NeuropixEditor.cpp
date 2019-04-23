@@ -520,11 +520,11 @@ NeuropixInterface::NeuropixInterface(NeuropixThread* t, NeuropixEditor* e) : thr
     addAndMakeVisible(filterComboBox);
     //addAndMakeVisible(activityViewComboBox);
 
-    //addAndMakeVisible(enableButton);
+    addAndMakeVisible(enableButton);
     //addAndMakeVisible(selectAllButton);
     //addAndMakeVisible(outputOnButton);
     //addAndMakeVisible(outputOffButton);
-    //addAndMakeVisible(enableViewButton);
+    addAndMakeVisible(enableViewButton);
     addAndMakeVisible(lfpGainViewButton);
     addAndMakeVisible(apGainViewButton);
     addAndMakeVisible(referenceViewButton);
@@ -825,7 +825,8 @@ void NeuropixInterface::buttonClicked(Button* button)
             visualizationMode = 5; // lfp
 
         startTimer(1000);
-    } else if (button == enableButton)
+    }
+	else if (button == enableButton)
     {
         if (!editor->acquisitionIsActive)
         {
@@ -1576,7 +1577,7 @@ void NeuropixInterface::paint(Graphics& g)
             float xLoc = 225 - channelHeight * (1 - (i % 2));
             float yLoc = lowerBound - ((i - lowestChan - (i % 2)) / 2 * channelHeight);
 
-            if (channelSelectionState[i])
+            if (channelSelectionState[i] == 1)
             {
                 g.setColour(Colours::white);
                 g.fillRect(xLoc, yLoc, channelHeight, channelHeight);
@@ -2026,6 +2027,13 @@ void NeuropixInterface::saveParameters(XmlElement* xml)
 	xmlNode->setAttribute("probe_option", asicInfo);
 	xmlNode->setAttribute("probe_serial_number", serialNumber);
 
+	XmlElement* channelNode = xmlNode->createNewChildElement("CHANNELSTATUS");
+
+	for (int i = 0; i < channelStatus.size(); i++)
+	{
+		channelNode->setAttribute(String("E") + String(i), channelStatus[i]);
+	}
+
 	// annotations
 	for (int i = 0; i < annotations.size(); i++)
 	{
@@ -2064,6 +2072,20 @@ void NeuropixInterface::loadParameters(XmlElement* xml)
 			int filterCutIndex = xmlNode->getIntAttribute("filterCutIndex");
 			if (filterCutIndex != filterComboBox->getSelectedId())
 				filterComboBox->setSelectedId(filterCutIndex, sendNotification);
+
+			if (xmlNode->getChildByName("CHANNELSTATUS"))
+			{
+
+				XmlElement* status = xmlNode->getChildByName("CHANNELSTATUS");
+
+				for (int i = 0; i < channelStatus.size(); i++)
+				{
+					channelSelectionState.set(i, status->getIntAttribute(String("E") + String(i)));
+				}
+
+				buttonClicked(enableButton);
+
+			}
 
 			forEachXmlChildElement(*xmlNode, annotationNode)
 			{

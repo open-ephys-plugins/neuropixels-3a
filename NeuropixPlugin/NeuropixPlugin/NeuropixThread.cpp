@@ -409,10 +409,27 @@ float NeuropixThread::getBitVolts(const DataChannel* chan) const
 void NeuropixThread::selectElectrode(int chNum, int connection, bool transmit)
 {
 
-    if (!refs.contains(chNum+1))
-        neuropix.neuropix_selectElectrode(chNum, connection, transmit);
-    else
-        neuropix.neuropix_selectElectrode(chNum, 0xFF, transmit);
+	ShankConfigErrorCode ec;
+
+	if (!refs.contains(chNum + 1))
+	{
+		ec = neuropix.neuropix_selectElectrode(chNum, connection, transmit);
+		if (ec != SHANK_SUCCESS)
+			std::cout << "Failed to write ";
+		else
+			std::cout << "Succesfully wrote ";
+		std::cout << "channel: " << String(chNum) << " to bank : " << String(connection) << std::endl;
+
+	}
+	else
+	{
+		ec = neuropix.neuropix_selectElectrode(chNum, 0xFF, transmit);
+		if (ec != SHANK_SUCCESS)
+			std::cout << "Failed to disconnect ";
+		else
+			std::cout << "Succesfully disconnected ";
+		std::cout << "ref channel: " << String(chNum) << std::endl;
+	}
 
     //std::cout << "Connecting input " << chNum << " to channel " << connection << "; error code = " << scec << std::endl;
 
