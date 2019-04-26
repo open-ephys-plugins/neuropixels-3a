@@ -39,22 +39,6 @@ GenericEditor* NeuropixThread::createEditor(SourceNode* sn)
 NeuropixThread::NeuropixThread(SourceNode* sn) : DataThread(sn), baseStationAvailable(false)
 {
 
-	sourceBuffers.add(new DataBuffer(384, 10000));  // AP band buffer
-	sourceBuffers.add(new DataBuffer(384, 10000));  // LFP band buffer
-
-    // channel selections:
-    // Options 1 & 2 -- fixed 384 channels
-    // Option 3 -- select 384 of 960 shank electrodes
-    // Option 4 -- select 276 of 966 shank electrodes
-
-    for (int i = 0; i < 384; i++)
-    {
-        lfpGains.add(0);
-        apGains.add(0);
-        channelMap.add(i);
-        outputOn.add(true);
-    }
-
     gains.add(50);
     gains.add(125);
     gains.add(250);
@@ -82,7 +66,23 @@ NeuropixThread::NeuropixThread(SourceNode* sn) : DataThread(sn), baseStationAvai
     eventCode = 0;
     maxCounter = 0;
 
-    openConnection();
+    openConnection(); //gets totalChans
+
+	// channel selections:
+	// Options 1 & 2 -- fixed 384 channels
+	// Option 3 -- select 384 of 960 shank electrodes
+	// Option 4 -- select 276 of 966 shank electrodes
+
+	for (int i = 0; i < totalChans; i++)
+	{
+		lfpGains.add(0);
+		apGains.add(0);
+		channelMap.add(i);
+		outputOn.add(true);
+	}
+
+	sourceBuffers.add(new DataBuffer(totalChans, 10000));  // AP band buffer
+	sourceBuffers.add(new DataBuffer(totalChans, 10000));  // LFP band buffer
 
 }
 
@@ -697,10 +697,7 @@ bool NeuropixThread::updateBuffer()
 
     if (rec == READ_SUCCESS)
     {
-        float data[384];
-        float data2[384];
 
-        
         if (counter <= 0)
         {
           std::cout << "Fifo fill percentage: ";
@@ -716,19 +713,23 @@ bool NeuropixThread::updateBuffer()
         
         //counter--;
 
+		std::vector<float> lfpBuffer;
+
         for (int i = 0; i < 12; i++)
         {
             eventCode = (uint64) packet.synchronization[i]; // currently returning 65535
 
-            for (int j = 0; j < 384; j++)
+			std::vector<float> apBuffer;
+
+            for (int j = 0; j < totalChans; j++)
             {
-                data[j] = (packet.apData[i][j] - 0.6) / gains[apGains[j]] * -1000000.0f; // convert to microvolts
+                apBuffer.push_back((packet.apData[i][j] - 0.6) / gains[apGains[j]] * -1000000.0f); // convert to microvolts
 
                 if (i == 0 && sendLfp)
-                    data2[j] = (packet.lfpData[j] - 0.6) / gains[lfpGains[j]] * -1000000.0f; // convert to microvolts
+                    lfpBuffer.push_back((packet.lfpData[j] - 0.6) / gains[lfpGains[j]] * -1000000.0f); // convert to microvolts
             }
 
-            sourceBuffers[0]->addToBuffer(data, &timestampAp, &eventCode, 1);
+			sourceBuffers[0]->addToBuffer(apBuffer.data(), &timestampAp, &eventCode, 1);
             timestampAp += 1;
         }
 
@@ -736,7 +737,7 @@ bool NeuropixThread::updateBuffer()
 
 		if (sendLfp)
 		{
-			sourceBuffers[1]->addToBuffer(data2, &timestampLfp, &eventCode, 1);
+			sourceBuffers[1]->addToBuffer(lfpBuffer.data(), &timestampLfp, &eventCode, 1);
 			timestampLfp += 1;
 		}
             
