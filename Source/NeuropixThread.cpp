@@ -178,7 +178,7 @@ void NeuropixThread::updateSettings(OwnedArray<ContinuousChannel>* continuousCha
     OwnedArray<ConfigurationObject>* configurationObjects)
 {
     
-    if (dataStreams->size() == 0)
+    if (dataStreams->size() == 0 && foundInputSource)
     {
         DataStream::Settings apStreamSettings
         {
