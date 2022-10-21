@@ -38,7 +38,7 @@ extern "C" EXPORT void getLibInfo(Plugin::LibraryInfo* info)
 {
 	info->apiVersion = PLUGIN_API_VER;
 	info->name = "Neuropix-3a";
-	info->libVersion = 1;
+	info->libVersion = "0.2.0";
 	info->numPlugins = NUM_PLUGINS;
 }
 
@@ -47,7 +47,7 @@ extern "C" EXPORT int getPluginInfo(int index, Plugin::PluginInfo* info)
 	switch (index)
 	{
 	case 0:
-		info->type = Plugin::PLUGIN_TYPE_DATA_THREAD;
+		info->type = Plugin::Type::DATA_THREAD;
 		info->dataThread.name = "Neuropix-3a";
 		info->dataThread.creator = &createDataThread<Neuropix::NeuropixThread>;
 		break;

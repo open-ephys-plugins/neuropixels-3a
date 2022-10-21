@@ -43,17 +43,14 @@ namespace Neuropix {
 	class Annotation;
 	class ColorSelector;
 
-	class NeuropixEditor : public VisualizerEditor, public ComboBox::Listener
+	class NeuropixEditor : public VisualizerEditor, public ComboBox::Listener, public Button::Listener
 	{
 	public:
-	    NeuropixEditor(GenericProcessor* parentNode, NeuropixThread* thread, bool useDefaultParameterEditors);
+	    NeuropixEditor(GenericProcessor* parentNode, NeuropixThread* thread);
 	    virtual ~NeuropixEditor();
 
 	    void comboBoxChanged(ComboBox* comboBox);
-	    void buttonEvent(Button* button);
-
-		void saveEditorParameters(XmlElement*);
-		void loadEditorParameters(XmlElement*);
+	    void buttonClicked(Button* button);
 
 	    Visualizer* createNewCanvas(void);
 
@@ -65,14 +62,11 @@ namespace Neuropix {
 	    ScopedPointer<ComboBox> optionComboBox;
 	    ScopedPointer<UtilityButton> triggerTypeButton;
 	    ScopedPointer<Label> triggerTypeLabel;
-		ScopedPointer<UtilityButton> recordButton;
-		ScopedPointer<Label> recordLabel;
 	    Viewport* viewport;
 	    NeuropixCanvas* canvas;
 	    NeuropixThread* thread;
 
 	    bool internalTrigger;
-		bool recordToNpx;
 		bool sendAp;
 		bool sendLfp;
 		int option;
@@ -103,11 +97,10 @@ namespace Neuropix {
 	    void setParameter(int, int, int, float);
 	    void buttonClicked(Button* button);
 
-	    void saveVisualizerParameters(XmlElement* xml);
-		void loadVisualizerParameters(XmlElement* xml);
+	    void saveCustomParametersToXml(XmlElement* xml) override;
+		void loadCustomParametersFromXml(XmlElement* xml) override;
 
 		void resized();
-
 
 		SourceNode* processor;
 		NeuropixThread* thread;
@@ -270,7 +263,7 @@ namespace Neuropix {
 
 	};
 
-	class ColorSelector : public Component, public ButtonListener
+	class ColorSelector : public Component, public Button::Listener
 	{
 	public:
 		ColorSelector(NeuropixInterface* np);

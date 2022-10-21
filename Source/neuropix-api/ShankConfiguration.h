@@ -25,7 +25,7 @@ enum ShankConfigErrorCode
 
 enum ElectrodeConnection
 {
-  NONE = 0xff,
+  NO_CONNECTION = 0xff,
   ZERO = 0,
   ONE = 1,
   TWO = 2,

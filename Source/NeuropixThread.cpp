@@ -31,9 +31,11 @@ DataThread* NeuropixThread::createDataThread(SourceNode *sn)
 	return new NeuropixThread(sn);
 }
 
-GenericEditor* NeuropixThread::createEditor(SourceNode* sn)
+std::unique_ptr<GenericEditor> NeuropixThread::createEditor(SourceNode* sn)
 {
-    return new NeuropixEditor(sn, this, true);
+    std::unique_ptr<NeuropixEditor> ed = std::make_unique<NeuropixEditor>(sn, this);
+
+    return ed;
 }
 
 NeuropixThread::NeuropixThread(SourceNode* sn) : DataThread(sn), baseStationAvailable(false)
@@ -110,9 +112,6 @@ void NeuropixThread::openConnection()
     internalTrigger = true;
     sendLfp = true;
     sendAp = true;
-    recordToNpx = false;
-    recordingNumber = 0;
-	isRecording = false;
 
     // // GET SYSTEM INFO:
     ErrorCode error1 = neuropix.neuropix_getHardwareVersion(&hw_version);
@@ -160,32 +159,6 @@ void NeuropixThread::openConnection()
 	neuropix.neuropix_ledOff(true);
 }
 
-void NeuropixThread::startRecording()
-{
-	if (recordToNpx)
-	{
-		recordingNumber++;
-		File rootFolder = CoreServices::RecordNode::getRecordingPath();
-		File fullPath = rootFolder.getChildFile("recording" + String(recordingNumber) + ".npx");
-		const std::string fname = fullPath.getFullPathName().toStdString();
-		ErrorCode caec = neuropix.neuropix_startRecording(fname);
-		std::cout << "NeuropixThread recording to file: " << fname << std::endl;
-
-		isRecording = true;
-	}
-}
-
-void NeuropixThread::stopRecording()
-{
-	if (recordToNpx)
-	{
-		ErrorCode caec = neuropix.neuropix_stopRecording();
-		std::cout << "NeuropixThread stopping recording." << std::endl;
-
-		isRecording = false;
-	}
-}
-
 void NeuropixThread::closeConnection()
 {
     neuropix.neuropix_close(); // closes the data and configuration link 
@@ -195,6 +168,112 @@ void NeuropixThread::closeConnection()
 bool NeuropixThread::foundInputSource()
 {
     return baseStationAvailable;
+}
+
+void NeuropixThread::updateSettings(OwnedArray<ContinuousChannel>* continuousChannels,
+    OwnedArray<EventChannel>* eventChannels,
+    OwnedArray<SpikeChannel>* spikeChannels,
+    OwnedArray<DataStream>* dataStreams,
+    OwnedArray<DeviceInfo>* devices,
+    OwnedArray<ConfigurationObject>* configurationObjects)
+{
+    
+    if (dataStreams->size() == 0)
+    {
+        DataStream::Settings apStreamSettings
+        {
+            "Neuropix-3a-AP",
+            "Data from a Neuropixels 3a probe (AP band)",
+            "neuropix-3a.ap",
+
+            30000.0
+
+        };
+
+        dataStreams->add(new DataStream(apStreamSettings));
+
+        for (int i = 0; i < 384; i++)
+        {
+            ContinuousChannel::Settings settings{
+                ContinuousChannel::Type::ELECTRODE,
+                "AP" + String(i + 1),
+                "Neuropixels AP band electrode",
+                "neuropixels-3a.ap.electrode",
+
+                0.195,
+
+                dataStreams->getLast()
+            };
+
+            continuousChannels->add(new ContinuousChannel(settings));
+        }
+
+        DataStream::Settings lfpStreamSettings
+        {
+            "Neuropix-3a-LFP",
+            "Data from a Neuropixels 3a probe (LFP band)",
+            "neuropix-3a.lfp",
+
+            30000.0
+
+        };
+
+        dataStreams->add(new DataStream(lfpStreamSettings));
+
+        for (int i = 0; i < 384; i++)
+        {
+            ContinuousChannel::Settings settings{
+                ContinuousChannel::Type::ELECTRODE,
+                "LFP" + String(i + 1),
+                "Neuropixels LFP band electrode",
+                "neuropixels-3a.lfp.electrode",
+
+                0.195,
+
+                dataStreams->getLast()
+            };
+
+            continuousChannels->add(new ContinuousChannel(settings));
+        }
+
+        EventChannel::Settings settings{
+            EventChannel::Type::TTL,
+            "Neuropixels 3a sync",
+            "Status of sync port on Kintex basestation",
+            "neuropixels-3a.sync",
+            dataStreams->getLast(),
+            8
+        };
+
+        eventChannels->add(new EventChannel(settings));
+
+        DeviceInfo::Settings deviceSettings{
+                "Neuropixels-3a-probe",
+                "Neuropixels 3a probe",
+                "Option " + getProbeOption(),
+                "serial_number", // TODO
+                "imec"
+        };
+
+        DeviceInfo* device = new DeviceInfo(deviceSettings);
+
+        MetadataDescriptor descriptor(MetadataDescriptor::MetadataType::UINT16,
+            1, "num_adcs",
+            "Number of analog-to-digital converter for this probe", "neuropixels.adcs");
+
+        MetadataValue value(MetadataDescriptor::MetadataType::UINT16, 1);
+        value.setValue(32);
+
+        device->addMetadata(descriptor, value);
+
+        devices->add(device); // unique device object owned by SourceNode
+
+        for (int i = 0; i < 2; i++)
+            dataStreams->getLast()->device = device; // DataStream object just gets a pointer
+    }
+
+   
+
 }
 
 void NeuropixThread::getInfo(String& hwVersion, String& bsVersion, String& apiVersion, String& asicInfo, String& serialNumber)
@@ -235,10 +314,7 @@ bool NeuropixThread::startAcquisition()
     // clear the internal buffer
 	sourceBuffers[0]->clear();
 	sourceBuffers[1]->clear();
-    //dataBuffer->clear();
-	//extraDataBuffers[0]->clear();
-   // dataBuffer2->clear();
-
+  
     // stop data stream
     if (true)
     {
@@ -266,20 +342,6 @@ bool NeuropixThread::startAcquisition()
     return true;
 }
 
-void NeuropixThread::timerCallback()
-{
-
-    stopTimer();
-
-    // start data stream
-    
-	startRecording();
-
-    //DigitalControlErrorCode err5 = neuropix.neuropix_nrst(true);
-    //std::cout << "nrst 2 error code: " << err5 << std::endl;
-
-}
-
 
 /** Stops data transfer.*/
 bool NeuropixThread::stopAcquisition()
@@ -290,7 +352,6 @@ bool NeuropixThread::stopAcquisition()
         signalThreadShouldExit();
     }
 
-	stopRecording();
 
     if (true)
     {
@@ -309,32 +370,6 @@ bool NeuropixThread::stopAcquisition()
     return true;
 }
 
-void NeuropixThread::setDefaultChannelNames()
-{
-
-	//std::cout << "Setting channel bitVolts to 0.195" << std::endl;
-
-	for (int i = 0; i < 384; i++)
-	{
-		ChannelCustomInfo info;
-		info.name = "AP" + String(i + 1);
-		info.gain = 0.1950000f;
-		channelInfo.set(i, info);
-	}
-
-	for (int i = 0; i < 384; i++)
-	{
-		ChannelCustomInfo info;
-		info.name = "LFP" + String(i + 1);
-		info.gain = 0.1950000f;
-		channelInfo.set(384 + i, info);
-	}
-}
-
-bool NeuropixThread::usesCustomNames() const
-{
-	return true;
-}
 
 void NeuropixThread::toggleApData(bool state)
 {
@@ -344,66 +379,6 @@ void NeuropixThread::toggleApData(bool state)
 void NeuropixThread::toggleLfpData(bool state)
 {
      sendLfp = state;
-}
-
-/** Returns the number of virtual subprocessors this source can generate */
-unsigned int NeuropixThread::getNumSubProcessors() const
-{
-	return 2;
-}
-
-/** Returns the number of continuous headstage channels the data source can provide.*/
-int NeuropixThread::getNumDataOutputs(DataChannel::DataChannelTypes type, int subProcessorIdx) const
-{
-
-	int numChans;
-
-	if (type == DataChannel::DataChannelTypes::HEADSTAGE_CHANNEL && subProcessorIdx == 0)
-		numChans = 384;
-	else if (type == DataChannel::DataChannelTypes::HEADSTAGE_CHANNEL && subProcessorIdx == 1)
-		numChans = 384;
-	else
-		numChans = 0;
-
-	//std::cout << "Num chans for subprocessor " << subProcessorIdx << " = " << numChans << std::endl;
-	
-	return numChans;
-}
-
-/** Returns the number of TTL channels that each subprocessor generates*/
-int NeuropixThread::getNumTTLOutputs(int subProcessorIdx) const 
-{
-	if (subProcessorIdx == 0)
-	{
-		return 16;
-	}
-	else {
-		return 0;
-	}
-}
-
-/** Returns the sample rate of the data source.*/
-float NeuropixThread::getSampleRate(int subProcessorIdx) const
-{
-
-	float rate;
-
-	if (subProcessorIdx == 0)
-		rate = 30000.0f;
-	else
-		rate = 2500.0f;
-
-
-//	std::cout << "Sample rate for subprocessor " << subProcessorIdx << " = " << rate << std::endl;
-
-	return rate;
-}
-
-/** Returns the volts per bit of the data source.*/
-float NeuropixThread::getBitVolts(const DataChannel* chan) const
-{
-	//std::cout << "BIT VOLTS == 0.195" << std::endl;
-	return 0.1950000f;
 }
 
 void NeuropixThread::selectElectrode(int chNum, int connection, bool transmit)
@@ -558,11 +533,6 @@ void NeuropixThread::setTriggerMode(bool trigger)
     internalTrigger = trigger;
 }
 
-void NeuropixThread::setRecordMode(bool record)
-{
-    recordToNpx = record;
-}
-
 void NeuropixThread::setAutoRestart(bool restart)
 {
 	autoRestart = restart;
@@ -677,20 +647,7 @@ void NeuropixThread::calibrateFromCsv(File directory)
 
 bool NeuropixThread::updateBuffer()
 {
-
-	bool shouldRecord = CoreServices::getRecordingStatus();
-
-	if (!isRecording && shouldRecord)
-	{
-		isRecording = true;
-		startTimer(500); // delay to allow RecordNode to update recording directory
-	}
-	else if (isRecording && !shouldRecord)
-	{
-		stopRecording();
-	}
-		
-
+	
     ElectrodePacket packet;
 
     ReadErrorCode rec = neuropix.neuropix_readElectrodeData(packet);
@@ -708,11 +665,6 @@ bool NeuropixThread::updateBuffer()
 			counter--;
 		}
 
-        //if (packet.ctrs[0][0] > maxCounter)
-        //  maxCounter = packet.ctrs[0][0];
-        
-        //counter--;
-
 		std::vector<float> lfpBuffer;
 
         for (int i = 0; i < 12; i++)
@@ -729,7 +681,7 @@ bool NeuropixThread::updateBuffer()
                     lfpBuffer.push_back((packet.lfpData[j] - 0.6) / gains[lfpGains[j]] * -1000000.0f); // convert to microvolts
             }
 
-			sourceBuffers[0]->addToBuffer(apBuffer.data(), &timestampAp, &eventCode, 1);
+			sourceBuffers[0]->addToBuffer(apBuffer.data(), &timestampAp, &timestamp_s, &eventCode, 1);
             timestampAp += 1;
         }
 
@@ -737,17 +689,9 @@ bool NeuropixThread::updateBuffer()
 
 		if (sendLfp)
 		{
-			sourceBuffers[1]->addToBuffer(lfpBuffer.data(), &timestampLfp, &eventCode, 1);
+			sourceBuffers[1]->addToBuffer(lfpBuffer.data(), &timestampLfp, &timestamp_s, &eventCode, 1);
 			timestampLfp += 1;
 		}
-            
-		//if (counter == 0)
-		//{
-		//	std::cout << timestampAp << ":" << timestampLfp << std::endl;
-		//}
-
-        //std::cout << "READ SUCCESS!" << std::endl;    
-        
     }
     else {
         if (rec == NO_DATA_LINK)

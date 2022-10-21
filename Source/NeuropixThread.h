@@ -38,64 +38,59 @@ namespace Neuropix {
 
 	/**
 
-	  Communicates with imec Neuropix probes.
+	  Communicates with imec version 3a Neuropixels probes
+	  using a Kintex acquisition board
 
 	  @see DataThread, SourceNode
 
 	*/
 
-	class NeuropixThread : public DataThread, public Timer
+	class NeuropixThread : public DataThread
 	{
 
 	public:
 
+		/** Constructor */
 	    NeuropixThread(SourceNode* sn);
+
+		/** Destructor */
 	    ~NeuropixThread();
 
-	    bool updateBuffer();
+		// DataThread Methods
 
-		void updateChannels();
+		/** Static method for creating the DataThread object */
+		static DataThread* createDataThread(SourceNode* sn);
+
+		/** Creates the custom editor */
+		std::unique_ptr<GenericEditor> createEditor(SourceNode* sn);
+
+		/** Adds data to the AP and LFP band buffers*/
+	    bool updateBuffer();
 
 	    /** Returns true if the data source is connected, false otherwise.*/
 	    bool foundInputSource();
 
+		/** Called by ProcessorGraph to inform the thread whether the signal chain is loading */
+		void initialize(bool signalChainIsLoading) override { }
+
+	    /** Initializes data transfer.*/
+	    bool startAcquisition() override;
+
+	    /** Stops data transfer.*/
+	    bool stopAcquisition() override;
+
+		/** Update settings */
+		void updateSettings(OwnedArray<ContinuousChannel>* continuousChannels,
+			OwnedArray<EventChannel>* eventChannels,
+			OwnedArray<SpikeChannel>* spikeChannels,
+			OwnedArray<DataStream>* dataStreams,
+			OwnedArray<DeviceInfo>* devices,
+			OwnedArray<ConfigurationObject>* configurationObjects) override;
+
+		// Neuropixels Methods
 		/** Returns version info for hardware and API.*/
 		void getInfo(String& hwVersion, String& bsVersion, String& apiVersion, String& asicInfo, String& serialNumber);
 
-	    /** Initializes data transfer.*/
-	    bool startAcquisition();
-
-	    /** Stops data transfer.*/
-	    bool stopAcquisition();
-
-		void startRecording();
-		void stopRecording();
-		bool isRecording;
-
-		// DataThread Methods
-
-		/** Returns the number of virtual subprocessors this source can generate */
-		unsigned int getNumSubProcessors() const override;
-
-		/** Returns the number of continuous headstage channels the data source can provide.*/
-		int getNumDataOutputs(DataChannel::DataChannelTypes type, int subProcessorIdx) const override;
-
-		/** Returns the number of TTL channels that each subprocessor generates*/
-		int getNumTTLOutputs(int subProcessorIdx) const override;
-
-		/** Returns the sample rate of the data source.*/
-		float getSampleRate(int subProcessorIdx) const override;
-
-		/** Returns the volts per bit of the data source.*/
-		float getBitVolts(const DataChannel* chan) const override;
-
-		/** Used to set default channel names.*/
-		void setDefaultChannelNames() override;
-
-		/** Used to override default channel names.*/
-		bool usesCustomNames() const override;
-
-		// Neuropix Methods
 
 		/** Selects which electrode is connected to each channel. */
 		void selectElectrode(int chNum, int connection, bool transmit);
@@ -121,9 +116,6 @@ namespace Neuropix {
 	    /** Toggles between internal and external triggering. */
 	    void setTriggerMode(bool trigger);
 
-		/** Toggles between saving to NPX file. */
-		void setRecordMode(bool record);
-
 		/** Toggles between auto-restart setting. */
 		void setAutoRestart(bool restart);
 
@@ -142,9 +134,6 @@ namespace Neuropix {
 		/** Retrieve probe option. */
 		int getProbeOption();
 
-		/** Starts data acquisition after a certain time.*/
-		void timerCallback();
-
 		/** Turns AP data output on and off.*/
 		void toggleApData(bool send);
 
@@ -156,16 +145,11 @@ namespace Neuropix {
 			return &displayMutex;
 		}
 
-		static DataThread* createDataThread(SourceNode* sn);
-
-		GenericEditor* createEditor(SourceNode* sn);
-
 	    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NeuropixThread);
 
 	private:
 	    bool baseStationAvailable;
 	    bool internalTrigger;
-		bool recordToNpx;
 		bool autoRestart;
 		bool sendAp;
 		bool sendLfp;
@@ -174,8 +158,6 @@ namespace Neuropix {
 
 		Neuropix_basestation_api neuropix;
 		
-		//long int counter;
-		int recordingNumber;
 
 		CriticalSection displayMutex;
 
@@ -203,6 +185,8 @@ namespace Neuropix {
 		uint8 option;
 		int numRefs;
 		int totalChans;
+
+		double timestamp_s = 0;
 
 	};
 

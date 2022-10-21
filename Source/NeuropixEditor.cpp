@@ -26,8 +26,8 @@
 
 using namespace Neuropix;
 
-NeuropixEditor::NeuropixEditor(GenericProcessor* parentNode, NeuropixThread* t, bool useDefaultParameterEditors)
- : VisualizerEditor(parentNode, useDefaultParameterEditors)
+NeuropixEditor::NeuropixEditor(GenericProcessor* parentNode, NeuropixThread* t)
+ : VisualizerEditor(parentNode, "Neuropix 3a")
 {
 
     thread = t;
@@ -64,15 +64,6 @@ NeuropixEditor::NeuropixEditor(GenericProcessor* parentNode, NeuropixThread* t, 
     triggerTypeLabel->setColour(Label::textColourId, Colours::darkgrey);
     //addAndMakeVisible(triggerTypeLabel);
 
-    recordButton = new UtilityButton("NO", Font("Small Text", 13, Font::plain));
-	recordButton->setRadius(3.0f);
-	recordButton->setBounds(20, 100, 34, 22);
-	recordButton->addListener(this);
-	recordButton->setTooltip("Record data to NPX format");
-	recordButton->setToggleState(false, dontSendNotification);
-	addAndMakeVisible(recordButton);
-
-	recordToNpx = false;
 
     lfpButton = new UtilityButton("LFP", Font("Small Text", 13, Font::plain));
     lfpButton->setRadius(3.0f);
@@ -93,11 +84,6 @@ NeuropixEditor::NeuropixEditor(GenericProcessor* parentNode, NeuropixThread* t, 
     //addAndMakeVisible(apButton);
 
     sendAp = true;
-
-    recordLabel = new Label("Record to NPX", "Record to NPX");
-	recordLabel->setBounds(55, 101, 200, 20);
-	recordLabel->setColour(Label::textColourId, Colours::darkgrey);
-	addAndMakeVisible(recordLabel);
 
     
 }
@@ -121,7 +107,7 @@ void NeuropixEditor::comboBoxChanged(ComboBox* comboBox)
     }
 }
 
-void NeuropixEditor::buttonEvent(Button* button)
+void NeuropixEditor::buttonClicked(Button* button)
 {
     if (!acquisitionIsActive)
     {
@@ -144,22 +130,6 @@ void NeuropixEditor::buttonEvent(Button* button)
             thread->setTriggerMode(internalTrigger);
         
         }
-		else if (button == recordButton)
-        {
-			recordToNpx = !recordToNpx;
-
-			if (recordToNpx)
-            {
-				recordButton->setLabel("YES");
-				recordButton->setToggleState(true, dontSendNotification);
-            }
-            else {
-				recordButton->setLabel("NO");
-				recordButton->setToggleState(false, dontSendNotification);
-            }
-
-			thread->setRecordMode(recordToNpx);
-        } 
         else if (button == apButton)
         {
             sendAp = !sendAp;
@@ -176,28 +146,6 @@ void NeuropixEditor::buttonEvent(Button* button)
     else {
         CoreServices::sendStatusMessage("Cannot update parameters while acquisition is active.");
     }
-}
-
-
-void NeuropixEditor::saveEditorParameters(XmlElement* xml)
-{
-	xml->setAttribute("Type", "Neuropix3aEditor");
-
-	XmlElement* textLabelValues = xml->createNewChildElement("VALUES");
-	textLabelValues->setAttribute("RecordToNpx", recordButton->getToggleState());
-}
-
-void NeuropixEditor::loadEditorParameters(XmlElement* xml)
-{
-
-	forEachXmlChildElement(*xml, xmlNode)
-	{
-		if (xmlNode->hasTagName("VALUES"))
-		{
-			recordButton->setToggleState(xmlNode->getBoolAttribute("RecordToNpx",false), sendNotification);
-		}
-	}
-
 }
 
 
@@ -291,17 +239,13 @@ void NeuropixCanvas::buttonClicked(Button* button)
 
 }
 
-void NeuropixCanvas::saveVisualizerParameters(XmlElement* xml)
+void NeuropixCanvas::saveCustomParametersToXml(XmlElement* xml)
 {
-	editor->saveEditorParameters(xml);
-
     neuropixInterface->saveParameters(xml);
 }
 
-void NeuropixCanvas::loadVisualizerParameters(XmlElement* xml)
+void NeuropixCanvas::loadCustomParametersFromXml(XmlElement* xml)
 {
-	editor->loadEditorParameters(xml);
-
     neuropixInterface->loadParameters(xml);
 }
 
@@ -1534,8 +1478,8 @@ void NeuropixInterface::paint(Graphics& g)
     {
         g.setColour(getChannelColour(i));
 
-        g.setPixel(xOffset + 3 + ((i % 2)) * 2, 513 - (i / 2));
-        g.setPixel(xOffset + 3 + ((i % 2)) * 2 + 1, 513 - (i / 2));
+        g.drawRect(xOffset + 3 + ((i % 2)) * 2, 513 - (i / 2), 1, 1);
+        g.drawRect(xOffset + 3 + ((i % 2)) * 2 + 1, 513 - (i / 2), 1, 1);
     }
 
     // channel 1 = pixel 513
