@@ -1,7 +1,7 @@
 #ifndef dll_import_export_h_
 #define dll_import_export_h_
 
-#ifdef MSVC
+#ifdef WIN32
 #ifdef EXPORTING
 #define DLL_IMPORT_EXPORT __declspec(dllexport)
 #else

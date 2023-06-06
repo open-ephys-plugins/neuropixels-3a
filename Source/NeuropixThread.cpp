@@ -68,6 +68,8 @@ NeuropixThread::NeuropixThread(SourceNode* sn) : DataThread(sn), baseStationAvai
     eventCode = 0;
     maxCounter = 0;
 
+    LOGD("Opening connection.");
+
     openConnection(); //gets totalChans
 
 	// channel selections:
@@ -86,6 +88,8 @@ NeuropixThread::NeuropixThread(SourceNode* sn) : DataThread(sn), baseStationAvai
 	sourceBuffers.add(new DataBuffer(totalChans, 10000));  // AP band buffer
 	sourceBuffers.add(new DataBuffer(totalChans, 10000));  // LFP band buffer
 
+    LOGD("Finished initialization.");
+
 }
 
 NeuropixThread::~NeuropixThread()
@@ -95,6 +99,19 @@ NeuropixThread::~NeuropixThread()
 
 void NeuropixThread::openConnection()
 {
+
+    LOGD("Checking for connection.");
+
+    bool isConnected = neuropix.neuropix_isConnected();
+
+    LOGD("Checking for version number.");
+
+    const struct VersionNumber v = neuropix.neuropix_getAPIVersion();
+
+    std::cout << v.major << "." << v.minor << std::endl;
+
+    LOGD("Opening basestation.");
+
     OpenErrorCode errorCode = neuropix.neuropix_open(); // establishes a data connection with the basestation
 
     if (errorCode == OPEN_SUCCESS)
@@ -178,7 +195,7 @@ void NeuropixThread::updateSettings(OwnedArray<ContinuousChannel>* continuousCha
     OwnedArray<ConfigurationObject>* configurationObjects)
 {
     
-    if (dataStreams->size() == 0 && foundInputSource)
+    if (dataStreams->size() == 0 && foundInputSource())
     {
         DataStream::Settings apStreamSettings
         {
@@ -208,13 +225,24 @@ void NeuropixThread::updateSettings(OwnedArray<ContinuousChannel>* continuousCha
             continuousChannels->add(new ContinuousChannel(settings));
         }
 
+        EventChannel::Settings apEventSettings{
+           EventChannel::Type::TTL,
+           "Neuropixels 3a AP sync",
+           "Status of sync port on Kintex basestation",
+           "neuropixels-3a.ap.sync",
+           dataStreams->getLast(),
+           8
+        };
+
+        eventChannels->add(new EventChannel(apEventSettings));
+
         DataStream::Settings lfpStreamSettings
         {
             "Neuropix-3a-LFP",
             "Data from a Neuropixels 3a probe (LFP band)",
             "neuropix-3a.lfp",
 
-            30000.0
+            2500.0
 
         };
 
@@ -236,16 +264,16 @@ void NeuropixThread::updateSettings(OwnedArray<ContinuousChannel>* continuousCha
             continuousChannels->add(new ContinuousChannel(settings));
         }
 
-        EventChannel::Settings settings{
+        EventChannel::Settings lfpEventSettings{
             EventChannel::Type::TTL,
-            "Neuropixels 3a sync",
+            "Neuropixels 3a LFP sync",
             "Status of sync port on Kintex basestation",
-            "neuropixels-3a.sync",
+            "neuropixels-3a.lfp.sync",
             dataStreams->getLast(),
             8
         };
 
-        eventChannels->add(new EventChannel(settings));
+        eventChannels->add(new EventChannel(lfpEventSettings));
 
         DeviceInfo::Settings deviceSettings{
                 "Neuropixels-3a-probe",
@@ -269,7 +297,7 @@ void NeuropixThread::updateSettings(OwnedArray<ContinuousChannel>* continuousCha
         devices->add(device); // unique device object owned by SourceNode
 
         for (int i = 0; i < 2; i++)
-            dataStreams->getLast()->device = device; // DataStream object just gets a pointer
+            dataStreams->getUnchecked(i)->device = device; // DataStream object just gets a pointer
     }
 
    
@@ -684,8 +712,6 @@ bool NeuropixThread::updateBuffer()
 			sourceBuffers[0]->addToBuffer(apBuffer.data(), &timestampAp, &timestamp_s, &eventCode, 1);
             timestampAp += 1;
         }
-
-        eventCode = 0;
 
 		if (sendLfp)
 		{
